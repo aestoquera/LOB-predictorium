@@ -6,7 +6,7 @@ import numpy as np
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(f"{CURRENT_DIR}/..")
 
-from utils import DataPoint, ScorerStepByStep
+from src.utils import DataPoint, ScorerStepByStep
 import onnxruntime as ort
 
 class PredictionModel:
