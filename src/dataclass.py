@@ -296,7 +296,7 @@ class SequencePanelData:
         feature_cols = (
             list(feature_cols)
             if feature_cols is not None
-            else list(self.feature_cols[:4])
+            else list(self.feature_cols[::6])
         )
 
         fig, ax1 = plt.subplots(figsize=figsize)

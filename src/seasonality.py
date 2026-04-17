@@ -240,3 +240,102 @@ def analyze_panel_seasonality(
         descending=[False, False, True]
     )
     return report
+
+
+
+import polars as pl
+
+def analyze_periodicity_report(report: pl.DataFrame) -> pl.DataFrame:
+    """
+    Analiza cualitativa y cuantitativamente un reporte de periodicidad en Polars.
+    """
+    sns.set_theme(style="whitegrid")
+    
+    # ==========================================
+    # 1. ESTADÍSTICAS CUANTITATIVAS
+    # ==========================================
+    
+    # Estadísticas globales por variable y método
+    stats = report.group_by(["variable", "method"]).agg([
+        pl.col("score").max().alias("max_score"),
+        pl.col("score").mean().alias("mean_score"),
+        pl.col("score").median().alias("median_score"),
+        pl.col("score").std().alias("std_score"),
+        pl.col("score").quantile(0.90).alias("p90_score") # Para ver dónde empieza el top 10%
+    ]).with_columns([
+        # Signal-to-Noise Ratio (SNR) aproximado: (Max - Mean) / Std
+        ((pl.col("max_score") - pl.col("mean_score")) / pl.col("std_score")).alias("snr_zscore")
+    ])
+    
+    # Extraer el periodo dominante (donde ocurre el max_score)
+    top_periods = (
+        report
+        .sort(["variable", "method", "score"], descending=[False, False, True])
+        .group_by(["variable", "method"], maintain_order=True)
+        .first()
+        .select(["variable", "method", "period_steps", "cycles_in_1000"])
+    )
+    
+    # Unir todo
+    full_stats = top_periods.join(stats, on=["variable", "method"])
+    
+    print(" --- ANALISIS CUANTITATIVO ---")
+    print(full_stats.show())
+    print("\n")
+
+    # ==========================================
+    # 2. PANEL DE VISUALIZACIONES (PLOTS)
+    # ==========================================
+    
+    fig = plt.figure(figsize=(16, 10))
+    fig.suptitle("Análisis de Periodicidad", fontsize=16, fontweight='bold')
+
+    # PLOT 1: Distribución general de Scores por Método (Boxplot)
+    # ¿Un método es más ruidoso que otro? ¿Tienen escalas distintas?
+    ax1 = plt.subplot(2, 2, 1)
+    sns.boxplot(data=report.to_pandas(), x="method", y="score", hue="method", ax=ax1, palette="Set2", legend=False)
+    ax1.set_title("Distribución de Scores por Método")
+    ax1.set_ylabel("Score")
+    ax1.set_xlabel("Método")
+
+    # PLOT 2: Periodo Dominante detectado por Variable y Método
+    # ¿Coinciden ACF y Spectrum en los mismos periodos?
+    ax2 = plt.subplot(2, 2, 2)
+    sns.scatterplot(
+        data=full_stats.to_pandas(), 
+        x="variable", 
+        y="period_steps", 
+        hue="method", 
+        style="method",
+        s=150, # Tamaño de los puntos
+        ax=ax2, 
+        palette="Set1"
+    )
+    ax2.set_title("Periodo Principal (Steps) por Variable")
+    ax2.set_ylabel("Period Steps")
+    ax2.set_xlabel("Variable")
+    plt.xticks(rotation=45)
+
+    # PLOT 3: Curva de Scores vs Period Steps (Ejemplo con la primera variable)
+    # Visualizar la "firma" real de la estacionalidad
+    ax3 = plt.subplot(2, 1, 2)
+    primera_variable = report["variable"][0] # Tomamos la primera variable del DF
+    sample_data = report.filter(pl.col("variable") == primera_variable).to_pandas()
+    
+    sns.lineplot(
+        data=sample_data, 
+        x="period_steps", 
+        y="score", 
+        hue="method", 
+        marker="o",
+        ax=ax3,
+        palette="Dark2"
+    )
+    ax3.set_title(f"Firma de Periodicidad (Score vs Steps) - Variable: {primera_variable}")
+    ax3.set_ylabel("Score")
+    ax3.set_xlabel("Period Steps")
+    
+    plt.tight_layout()
+    plt.show()
+
+    return full_stats

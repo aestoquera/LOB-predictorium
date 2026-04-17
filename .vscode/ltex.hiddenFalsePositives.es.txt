@@ -1,0 +1,1 @@
+{"rule":"AGREEMENT_POSTPONED_ADJ","sentence":"^\\QEl primer gráfico son dos columnas que podríamos encontrar en una \"matriz\" de correlación. En concreto son las que expresarían la correlación entre las co-variables y las variables objetivo.\\E$"}
